@@ -31,7 +31,7 @@ library(tidyr)
 # Set up your database connection parameters
 db_host <- "localhost"
 db_user <- "root"   # 
-db_password <- "Taha2015" # <-- blank out before submitting!
+db_password <- "--------" # <-- blank out before submitting!
 db_name <- "movieratings"
 
 # Connect to MySQL database
@@ -171,4 +171,5 @@ Just Me! Taha Malik
 
 - [Assignment Instructions]
 - [Recommendation Engines Article](https://towardsdatascience.com/the-4-recommendation-engines-that-can-predict-your-movie-tastes-109dc4e10c52)
+
 - [Steve Blank Lean Startup Video](https://www.youtube.com/watch?v=xr2zFXblSRM&t=27s)
