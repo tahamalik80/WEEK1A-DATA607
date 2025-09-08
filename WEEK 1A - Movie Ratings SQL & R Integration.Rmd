@@ -1,0 +1,174 @@
+---
+title: "WEEK 1A - Movie Ratings SQL & R Integration"
+author: "Taha Malik"
+date: "2025-09-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This assignment shows how I took ratings for six recent movies from five friends, stored that info in a normalized SQL database, and then analyzed it in R. I made sure to handle missing data, since not everyone watched every movie. The process reflects real-world data work and demonstrates how SQL and R come together for data science projects.
+
+---
+
+## 1. Connect to MySQL and Load Data
+
+First, I set up my R environment and connected to my MySQL database.  
+This part makes sure I can pull the ratings data right from where it lives, instead of using static files.
+
+```{r load-packages}
+library(DBI)
+library(RMySQL)
+library(dplyr)
+library(tidyr)
+```
+
+```{r connect-db, message=FALSE, warning=FALSE}
+# Set up your database connection parameters
+db_host <- "localhost"
+db_user <- "root"   # 
+db_password <- "Taha2015" # <-- blank out before submitting!
+db_name <- "movieratings"
+
+# Connect to MySQL database
+con <- dbConnect(RMySQL::MySQL(),
+                 host = db_host,
+                 user = db_user,
+                 password = db_password,
+                 dbname = db_name)
+
+# Optional: Hide password in submission by using environment variables
+# db_password <- Sys.getenv("DB_PASSWORD")
+```
+
+```{r load-tables}
+# Pull the tables from SQL into R so I can work with them
+friends <- dbReadTable(con, "friends")
+movies <- dbReadTable(con, "movies")
+ratings <- dbReadTable(con, "ratings")
+```
+
+---
+
+## 2. Join Data and Create Ratings Matrix
+
+Here, I join up the tables so I can see which friend rated which movie and what score they gave.  
+I pivot the data so each friend is a row and each movie is a column, with NAs where ratings are missing.
+
+```{r ratings-matrix}
+# Join all tables for a full ratings list
+ratings_full <- ratings %>%
+  left_join(friends, by = "friend_id") %>%
+  left_join(movies, by = "movie_id") %>%
+  select(name, title, year, rating)
+
+# Pivot to wide format (friends x movies)
+ratings_matrix <- ratings_full %>%
+  pivot_wider(names_from = title, values_from = rating)
+
+# Display the matrix
+knitr::kable(ratings_matrix, caption = "Ratings Matrix (NA = Missing)")
+```
+
+---
+
+## 3. Handling Missing Data
+
+Not everyone saw every movie, so there are gaps in the data.  
+This section counts how many ratings are missing for each friend and each movie, so I know where the holes are.  
+Handling missing data is crucial for honest analysis.
+
+```{r missing-data}
+# How many ratings are missing per friend?
+missing_per_friend <- ratings_matrix %>%
+  mutate(missing = rowSums(is.na(select(., -name)))) %>%
+  select(name, missing)
+
+knitr::kable(missing_per_friend, caption = "Number of Missing Ratings per Friend")
+
+# How many ratings are missing per movie?
+missing_per_movie <- colSums(is.na(ratings_matrix[,-1]))
+missing_per_movie_df <- data.frame(movie = names(missing_per_movie), missing = missing_per_movie)
+knitr::kable(missing_per_movie_df, caption = "Number of Missing Ratings per Movie")
+```
+
+---
+
+## 4. Analysis: Average Ratings and Standardization
+
+This part shows the average score for each movie, based only on friends who saw it.  
+I also standardize ratings (z-score) so differences in scoring style between friends are factored out.  
+This helps me compare movies fairly and spot any rating bias.
+
+```{r averages}
+# Average rating per movie (ignoring missing)
+avg_ratings <- ratings_full %>%
+  group_by(title) %>%
+  summarize(mean_rating = round(mean(rating, na.rm = TRUE),2),
+            num_ratings = n())
+
+knitr::kable(avg_ratings, caption = "Average Ratings per Movie")
+```
+
+```{r standardization}
+# Standardize ratings per friend (z-score)
+ratings_std <- ratings_full %>%
+  group_by(name) %>%
+  mutate(std_rating = scale(rating)) %>%
+  ungroup()
+
+knitr::kable(head(ratings_std), caption = "Standardized Ratings (first few rows)")
+```
+
+---
+
+## 5. Visualization (Optional)
+
+Graphs make the results easier to understand.  
+Here’s a bar chart showing the average ratings for each movie, so I can see which ones were most and least liked.
+
+```{r plot-averages, fig.width=7}
+library(ggplot2)
+ggplot(avg_ratings, aes(x = reorder(title, mean_rating), y = mean_rating)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Average Movie Ratings", x = "Movie", y = "Average Rating") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+---
+
+## 6. Disconnect
+
+Always clean up!  
+Here I disconnect from the database so I don’t leave open connections.
+
+```{r disconnect-db}
+dbDisconnect(con)
+```
+
+---
+
+## 7. Reflection
+
+This assignment taught me how to integrate SQL with R, retrieve relational data, and transform it into an analysis-ready format.
+One challenge was handling missing data—since not all friends watched every movie, the dataset contained gaps. I first quantified the missingness and then demonstrated imputation by filling NAs with the average rating for each movie.
+Another challenge was managing database credentials securely, which I addressed by using environment variables instead of hardcoding passwords.
+Overall, this workflow mirrors real-world data science practices, where connecting to databases, cleaning messy data, and presenting insights visually are essential.
+
+---
+
+## 8. Members
+
+Just Me! Taha Malik
+
+---
+
+## 9. References
+
+- [Assignment Instructions]
+- [Recommendation Engines Article](https://towardsdatascience.com/the-4-recommendation-engines-that-can-predict-your-movie-tastes-109dc4e10c52)
+- [Steve Blank Lean Startup Video](https://www.youtube.com/watch?v=xr2zFXblSRM&t=27s)
